@@ -1,0 +1,480 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model Claim {
+  id            String                        @id @default(uuid())
+  displayId     String                        @unique
+  repetitions   Int                           @default(0)
+  channelId     String
+  motiveId      String
+  typeJson      String?                       @db.NVarChar(Max)
+  orderId       String
+  storeId       String
+  customerId    String
+  escalated     Boolean                       @default(false)
+  assigneeId    String?
+  slaDueDate    DateTime?
+  priority      String                        @default("noPriority")
+  statusId      String
+  dateCreated   DateTime                      @default(now())
+  dateModified  DateTime                      @updatedAt
+  userCreated   String?
+  userModified  String?
+  channel       ClaimChannel                  @relation(fields: [channelId], references: [id])
+  motive        ClaimMotive                   @relation(fields: [motiveId], references: [id])
+  status        ClaimStatus                   @relation(fields: [statusId], references: [id])
+  items         ClaimItem[]
+  files         ClaimFile[]
+  histories     ClaimHistory[]
+  managements   ClaimManagementInstance[]
+  compensations ClaimCompensationAssignment[]
+  slaEvents     ClaimSlaEvent[]
+
+  @@index([displayId])
+  @@index([orderId])
+  @@index([customerId])
+  @@index([storeId])
+  @@index([statusId])
+  @@index([assigneeId])
+  @@index([slaDueDate])
+  @@map("csx_claims")
+}
+
+model ClaimItem {
+  id                    String              @id @default(uuid())
+  claimId               String
+  type                  String
+  typeId                String
+  orderId               String?
+  claimItemResolutionId String
+  claimTypeId           String
+  areaInChargeId        String?
+  comment               String?             @db.NVarChar(1000)
+  quantity              Decimal?            @db.Decimal(18, 4)
+  price                 Decimal?            @db.Decimal(18, 4)
+  dateCreated           DateTime            @default(now())
+  dateModified          DateTime            @updatedAt
+  userCreated           String?
+  userModified          String?
+  claim                 Claim               @relation(fields: [claimId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  resolution            ClaimItemResolution @relation(fields: [claimItemResolutionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  claimType             ClaimType           @relation(fields: [claimTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  areaInCharge          Area?               @relation(fields: [areaInChargeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([claimId])
+  @@index([type])
+  @@index([typeId])
+  @@index([orderId])
+  @@index([claimTypeId])
+  @@index([claimItemResolutionId])
+  @@map("csx_claim_items")
+}
+
+model ClaimFile {
+  id           String   @id @default(uuid())
+  claimId      String
+  name         String
+  url          String?  @db.NVarChar(1000)
+  fileSource   String?  @db.NVarChar(1000)
+  mimeType     String?
+  type         String?
+  size         Int?
+  dateCreated  DateTime @default(now())
+  dateModified DateTime @updatedAt
+  userCreated  String?
+  userModified String?
+  claim        Claim    @relation(fields: [claimId], references: [id])
+
+  @@index([claimId])
+  @@index([name])
+  @@map("csx_claim_files")
+}
+
+model ClaimHistory {
+  id           String   @id @default(uuid())
+  claimId      String
+  changeType   String
+  oldValue     String?  @db.NVarChar(2000)
+  newValue     String?  @db.NVarChar(2000)
+  metadataJson String?  @db.NVarChar(Max)
+  dateCreated  DateTime @default(now())
+  userCreated  String?
+  claim        Claim    @relation(fields: [claimId], references: [id])
+
+  @@index([claimId])
+  @@index([changeType])
+  @@index([dateCreated])
+  @@map("csx_claim_histories")
+}
+
+model Area {
+  id                  String                    @id @default(uuid())
+  name                String
+  status              String                    @default("active")
+  membersJson         String?                   @db.NVarChar(Max)
+  dateCreated         DateTime                  @default(now())
+  dateModified        DateTime                  @updatedAt
+  userCreated         String?
+  userModified        String?
+  claimItems          ClaimItem[]
+  claimTypes          ClaimType[]
+  managementInstances ClaimManagementInstance[]
+
+  @@index([name])
+  @@index([status])
+  @@map("csx_areas")
+}
+
+model ClaimChannel {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?  @db.NVarChar(1000)
+  status       String   @default("active")
+  dateCreated  DateTime @default(now())
+  dateModified DateTime @updatedAt
+  userCreated  String?
+  userModified String?
+  claims       Claim[]
+
+  @@index([name])
+  @@index([status])
+  @@map("csx_claim_channels")
+}
+
+model ClaimMotive {
+  id           String                  @id @default(uuid())
+  name         String
+  description  String?                 @db.NVarChar(1000)
+  status       String                  @default("active")
+  dateCreated  DateTime                @default(now())
+  dateModified DateTime                @updatedAt
+  userCreated  String?
+  userModified String?
+  claims       Claim[]
+  claimTypes   ClaimType[]
+  transitions  ClaimStatusTransition[]
+
+  @@index([name])
+  @@index([status])
+  @@map("csx_claim_motives")
+}
+
+model ClaimType {
+  id                    String            @id @default(uuid())
+  name                  String
+  description           String?           @db.NVarChar(1000)
+  claimMotiveId         String
+  parentId              String?
+  areaInChargeId        String?
+  sla                   Int?
+  slaMeasuredIn         String?
+  priority              String            @default("noPriority")
+  affectedProcessesJson String?           @db.NVarChar(Max)
+  compensationsJson     String?           @db.NVarChar(Max)
+  status                String            @default("active")
+  dateCreated           DateTime          @default(now())
+  dateModified          DateTime          @updatedAt
+  userCreated           String?
+  userModified          String?
+  motive                ClaimMotive       @relation(fields: [claimMotiveId], references: [id])
+  parent                ClaimType?        @relation("ClaimTypeTree", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children              ClaimType[]       @relation("ClaimTypeTree")
+  areaInCharge          Area?             @relation(fields: [areaInChargeId], references: [id])
+  items                 ClaimItem[]
+  managements           ClaimManagement[]
+
+  @@index([name])
+  @@index([claimMotiveId])
+  @@index([parentId])
+  @@index([areaInChargeId])
+  @@index([status])
+  @@map("csx_claim_types")
+}
+
+model ClaimStatus {
+  id              String                  @id @default(uuid())
+  name            String
+  description     String?                 @db.NVarChar(1000)
+  isInitial       Boolean                 @default(false)
+  isFinal         Boolean                 @default(false)
+  isNotifiable    Boolean                 @default(false)
+  backgroundColor String?
+  textColor       String?
+  status          String                  @default("active")
+  dateCreated     DateTime                @default(now())
+  dateModified    DateTime                @updatedAt
+  userCreated     String?
+  userModified    String?
+  claims          Claim[]
+  transitionsFrom ClaimStatusTransition[] @relation("StatusFrom")
+  transitionsTo   ClaimStatusTransition[] @relation("StatusTo")
+
+  @@index([name])
+  @@index([isInitial])
+  @@index([isFinal])
+  @@index([status])
+  @@map("csx_claim_statuses")
+}
+
+model ClaimStatusTransition {
+  id                  String       @id @default(uuid())
+  name                String
+  description         String?      @db.NVarChar(1000)
+  claimMotiveId       String?
+  statusFromId        String
+  statusToId          String
+  color               String?
+  requiresPermissions Boolean      @default(false)
+  updatesDateSolve    Boolean      @default(false)
+  status              String       @default("active")
+  dateCreated         DateTime     @default(now())
+  dateModified        DateTime     @updatedAt
+  userCreated         String?
+  userModified        String?
+  motive              ClaimMotive? @relation(fields: [claimMotiveId], references: [id])
+  statusFrom          ClaimStatus  @relation("StatusFrom", fields: [statusFromId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  statusTo            ClaimStatus  @relation("StatusTo", fields: [statusToId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([claimMotiveId])
+  @@index([statusFromId])
+  @@index([statusToId])
+  @@index([status])
+  @@map("csx_claim_status_transitions")
+}
+
+model ClaimItemResolution {
+  id                       String      @id @default(uuid())
+  name                     String
+  description              String?     @db.NVarChar(1000)
+  shouldCreateOrder        Boolean     @default(false)
+  shouldPickItem           Boolean     @default(false)
+  shouldInvoicedItem       Boolean     @default(false)
+  shouldGenerateCreditNote Boolean     @default(false)
+  status                   String      @default("active")
+  dateCreated              DateTime    @default(now())
+  dateModified             DateTime    @updatedAt
+  userCreated              String?
+  userModified             String?
+  claimItems               ClaimItem[]
+
+  @@index([name])
+  @@index([status])
+  @@map("csx_claim_item_resolutions")
+}
+
+model ClaimCompensation {
+  id           String                        @id @default(uuid())
+  name         String
+  description  String?                       @db.NVarChar(1000)
+  color        String?
+  hasComment   Boolean                       @default(false)
+  isPublic     Boolean                       @default(false)
+  status       String                        @default("active")
+  dateCreated  DateTime                      @default(now())
+  dateModified DateTime                      @updatedAt
+  userCreated  String?
+  userModified String?
+  assignments  ClaimCompensationAssignment[]
+
+  @@index([name])
+  @@index([status])
+  @@map("csx_claim_compensations")
+}
+
+model ClaimCompensationAssignment {
+  id             String            @id @default(uuid())
+  claimId        String
+  compensationId String
+  comment        String?           @db.NVarChar(1000)
+  amount         Decimal?          @db.Decimal(18, 4)
+  currency       String?           @default("CLP")
+  dateCreated    DateTime          @default(now())
+  userCreated    String?
+  claim          Claim             @relation(fields: [claimId], references: [id])
+  compensation   ClaimCompensation @relation(fields: [compensationId], references: [id])
+
+  @@index([claimId])
+  @@index([compensationId])
+  @@map("csx_claim_compensation_assignments")
+}
+
+model ClaimManagement {
+  id           String                    @id @default(uuid())
+  name         String
+  description  String?                   @db.NVarChar(1000)
+  claimTypeId  String?
+  status       String                    @default("active")
+  dateCreated  DateTime                  @default(now())
+  dateModified DateTime                  @updatedAt
+  userCreated  String?
+  userModified String?
+  claimType    ClaimType?                @relation(fields: [claimTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  statuses     ClaimManagementStatus[]
+  instances    ClaimManagementInstance[]
+
+  @@index([name])
+  @@index([claimTypeId])
+  @@index([status])
+  @@map("csx_claim_managements")
+}
+
+model ClaimManagementStatus {
+  id                String                    @id @default(uuid())
+  name              String
+  description       String?                   @db.NVarChar(1000)
+  claimManagementId String
+  status            String                    @default("active")
+  dateCreated       DateTime                  @default(now())
+  dateModified      DateTime                  @updatedAt
+  userCreated       String?
+  userModified      String?
+  management        ClaimManagement           @relation(fields: [claimManagementId], references: [id])
+  instances         ClaimManagementInstance[]
+
+  @@index([claimManagementId])
+  @@index([name])
+  @@index([status])
+  @@map("csx_claim_management_statuses")
+}
+
+model ClaimManagementInstance {
+  id                      String                @id @default(uuid())
+  claimId                 String
+  claimManagementId       String
+  claimManagementStatusId String
+  comment                 String?               @db.NVarChar(2000)
+  assignedAreaId          String?
+  assignedUserId          String?
+  dateCreated             DateTime              @default(now())
+  dateModified            DateTime              @updatedAt
+  userCreated             String?
+  userModified            String?
+  claim                   Claim                 @relation(fields: [claimId], references: [id])
+  management              ClaimManagement       @relation(fields: [claimManagementId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  managementStatus        ClaimManagementStatus @relation(fields: [claimManagementStatusId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assignedArea            Area?                 @relation(fields: [assignedAreaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([claimId])
+  @@index([claimManagementId])
+  @@index([claimManagementStatusId])
+  @@index([assignedAreaId])
+  @@index([assignedUserId])
+  @@map("csx_claim_management_instances")
+}
+
+model ClaimProcess {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?  @db.NVarChar(1000)
+  color        String?
+  status       String   @default("active")
+  dateCreated  DateTime @default(now())
+  dateModified DateTime @updatedAt
+  userCreated  String?
+  userModified String?
+
+  @@index([name])
+  @@index([status])
+  @@map("csx_claim_processes")
+}
+
+model ClaimSemaphore {
+  id           String   @id @default(uuid())
+  name         String
+  rangeLow     Decimal  @db.Decimal(18, 4)
+  rangeHigh    Decimal  @db.Decimal(18, 4)
+  color        String
+  alerts       Boolean  @default(false)
+  status       String   @default("active")
+  dateCreated  DateTime @default(now())
+  dateModified DateTime @updatedAt
+  userCreated  String?
+  userModified String?
+
+  @@index([name])
+  @@index([status])
+  @@map("csx_claim_semaphores")
+}
+
+model ClaimSlaEvent {
+  id          String    @id @default(uuid())
+  claimId     String
+  eventType   String
+  oldDueDate  DateTime?
+  newDueDate  DateTime?
+  reason      String?   @db.NVarChar(1000)
+  dateCreated DateTime  @default(now())
+  userCreated String?
+  claim       Claim     @relation(fields: [claimId], references: [id])
+
+  @@index([claimId])
+  @@index([eventType])
+  @@index([dateCreated])
+  @@map("csx_claim_sla_events")
+}
+
+model OutboxEvent {
+  id                String            @id @default(uuid())
+  topic             String
+  eventName         String
+  aggregateType     String
+  aggregateId       String
+  payloadJson       String            @db.NVarChar(Max)
+  headersJson       String?           @db.NVarChar(Max)
+  status            String            @default("pending")
+  retryCount        Int               @default(0)
+  errorMessage      String?           @db.NVarChar(Max)
+  dateCreated       DateTime          @default(now())
+  dateModified      DateTime          @updatedAt
+  publishedAt       DateTime?
+  webhookDeliveries WebhookDelivery[]
+
+  @@index([topic])
+  @@index([aggregateId])
+  @@index([status])
+  @@index([dateCreated])
+  @@map("csx_outbox_events")
+}
+
+model WebhookDelivery {
+  id           String      @id @default(uuid())
+  eventId      String
+  url          String      @db.NVarChar(1000)
+  payloadJson  String      @db.NVarChar(Max)
+  status       String      @default("pending")
+  retryCount   Int         @default(0)
+  responseCode Int?
+  errorMessage String?     @db.NVarChar(Max)
+  dateCreated  DateTime    @default(now())
+  dateModified DateTime    @updatedAt
+  deliveredAt  DateTime?
+  event        OutboxEvent @relation(fields: [eventId], references: [id])
+
+  @@index([eventId])
+  @@index([status])
+  @@index([dateCreated])
+  @@map("csx_webhook_deliveries")
+}
+
+model IdempotencyKey {
+  id           String   @id @default(uuid())
+  key          String   @unique
+  scope        String
+  requestHash  String?
+  responseJson String?  @db.NVarChar(Max)
+  status       String   @default("processing")
+  errorMessage String?  @db.NVarChar(Max)
+  dateCreated  DateTime @default(now())
+  dateModified DateTime @updatedAt
+
+  @@index([key])
+  @@index([scope])
+  @@index([status])
+  @@map("csx_idempotency_keys")
+}
